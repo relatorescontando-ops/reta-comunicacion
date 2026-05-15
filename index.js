@@ -121,7 +121,7 @@ function addBubble(text, role) {
 }
 
 function showWelcome() {
-  addBubble('Hola.\\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\\n\\n¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
+addBubble('Hola. Este es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto. ¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
 }
 
 function updateLimit() {
