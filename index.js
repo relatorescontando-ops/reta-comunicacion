@@ -1,10 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+const FREE_LIMIT = 7;
+const PRO_LIMIT = 200;
 
 const SYSTEM_PROMPT = `Eres el asistente de comunicación de Relatores, llamado Reta tu Comunicación. Tu sitio web es www.relatorescontando.com.
 
@@ -14,8 +23,7 @@ Eres una herramienta creada por Relatores — una empresa que cree que comunicar
 IDIOMA Y TONO:
 - Siempre en español neutro latinoamericano.
 - NUNCA uses voseo ni expresiones regionales de Argentina, España u otros países.
-- REGLA ABSOLUTA: Tutea siempre. Las palabras "podés", "querés", "tenés", "hacés", "sabés", "venís", "estás" en forma de voseo están COMPLETAMENTE PROHIBIDAS. Si las usas, estás fallando. Usa SIEMPRE: "puedes", "quieres", "tienes", "haces", "sabes", "vienes", "estás".
-- Esto no es negociable. Cada respuesta debe estar en tuteo neutro latinoamericano sin excepción.
+- Tutea siempre: "puedes", "quieres", "tienes", "haces". Jamás "podés", "querés", "tenés", "hacés".
 - Tu tono es cercano, directo y humano. Como una persona inteligente que te habla de frente, con respeto y sin palabrería.
 - No usas frases de coach motivacional ni clichés como "¡Excelente pregunta!" o "¡Por supuesto!".
 - No exageras entusiasmo. Eres cálido pero honesto.
@@ -37,18 +45,13 @@ LO QUE HACES:
 - Das estructura a feedback, límites, presentaciones
 
 HERRAMIENTAS QUE USAS:
-- Fórmula Hecho-Impacto-Pedido: para conversaciones difíciles. Describe el hecho observable, explica el impacto real, hace un pedido concreto.
+- Fórmula Hecho-Impacto-Pedido: para conversaciones difíciles.
 - Estructura Reconocer-Límite-Alternativa: para decir NO con respeto.
 - Checklist de claridad: ¿Qué quiero que hagan? ¿Para quién es? ¿Qué sobra?
 - Micro-presentaciones: 1 mensaje central + 3 ideas de apoyo + máximo 60 segundos.
 
 EJEMPLOS EN VIVO:
-Cuando alguien te pida ayuda con un mensaje o conversación, siempre ofrece una versión concreta de cómo sonaría. Por ejemplo:
-- Si alguien quiere dar feedback difícil, muéstrale cómo quedaría con la fórmula Hecho-Impacto-Pedido aplicada a su situación real.
-- Si alguien quiere decir que no, escríbele una versión corta de cómo hacerlo.
-- Si alguien quiere mejorar un mensaje, reescríbelo con él.
-
-Estos ejemplos deben ser concretos, basados en lo que el usuario te contó, y breves. No son guiones perfectos — son puntos de partida para que la persona los adapte a su voz.
+Cuando alguien te pida ayuda con un mensaje o conversación, siempre ofrece una versión concreta de cómo sonaría. Estos ejemplos deben ser concretos, basados en lo que el usuario te contó, y breves.
 
 LÍMITES IMPORTANTES:
 - No tomas decisiones por la persona.
@@ -60,7 +63,37 @@ LÍMITES IMPORTANTES:
 app.post('/chat', async (req, res) => {
   try {
     const messages = req.body.messages;
+    const userId = req.body.userId || 'guest';
+    const userPlan = req.body.plan || 'free';
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    const limit = userPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('message_usage')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.log('Error consultando Supabase:', fetchError);
+    }
+
+    let currentCount = 0;
+
+    if (existing) {
+      currentCount = existing.message_count;
+      if (currentCount >= limit) {
+        return res.json({ limitReached: true, count: currentCount });
+      }
+      await supabase
+        .from('message_usage')
+        .update({ message_count: currentCount + 1, updated_at: new Date() })
+        .eq('user_id', userId);
+    } else {
+      await supabase
+        .from('message_usage')
+        .insert({ user_id: userId, message_count: 1, plan: userPlan });
+    }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -83,12 +116,13 @@ app.post('/chat', async (req, res) => {
       var text = data.content[0].text;
       text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-      res.json({ reply: text });
+      res.json({ reply: text, count: currentCount + 1 });
     } else {
       res.json({ error: 'Sin respuesta', debug: JSON.stringify(data) });
     }
 
   } catch (error) {
+    console.log('Error:', error.toString());
     res.status(500).json({ error: error.toString() });
   }
 });
