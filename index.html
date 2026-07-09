@@ -100,13 +100,29 @@ function updateCounter() {
   }
 }
 
-function initChat() {
+async function initChat() {
   var uidParam = getUrlParam('uid');
   var planParam = getUrlParam('plan');
   if (uidParam) userId = uidParam;
   if (planParam) userPlan = planParam;
+
+  try {
+    var response = await fetch('/count?uid=' + userId);
+    var data = await response.json();
+    messageCount = data.count || 0;
+  } catch(e) {
+    messageCount = 0;
+  }
+
   updateCounter();
-  addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\n¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
+
+  if (messageCount >= getLimit()) {
+    document.getElementById('limit-banner').style.display = 'block';
+    document.getElementById('bottom-wrap').style.display = 'none';
+    document.getElementById('chips-wrap').style.display = 'none';
+  } else {
+    addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\n¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
+  }
 }
 
 var inputEl = document.getElementById('input');
