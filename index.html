@@ -7,30 +7,39 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
-#header { background: #ab46fa; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
-#logo { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-family: 'Noto Serif', serif; font-size: 14px; font-weight: 600; color: white; flex-shrink: 0; }
-#header-info p { font-family: 'Noto Serif', serif; font-size: 16px; font-weight: 600; }
-#header-info span { font-size: 12px; opacity: 0.85; }
-#header-link { margin-left: auto; font-size: 12px; color: white; opacity: 0.85; text-decoration: none; }
-#header-link:hover { opacity: 1; }
-#messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; max-width: 800px; width: 100%; margin: 0 auto; }
-.bubble { max-width: 78%; padding: 12px 16px; font-size: 15px; line-height: 1.6; word-wrap: break-word; }
-.bot { align-self: flex-start; background: white; color: #222; border: 1px solid #e5e5e5; border-radius: 4px 18px 18px 18px; }
-.user { align-self: flex-end; background: #4946fa; color: white; border-radius: 18px 18px 4px 18px; }
-.typing { align-self: flex-start; background: white; color: #999; border: 1px solid #e5e5e5; border-radius: 4px 18px 18px 18px; font-style: italic; padding: 12px 16px; font-size: 15px; }
-#chips-wrap { max-width: 800px; width: 100%; margin: 0 auto; padding: 0 20px 8px; display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { font-size: 13px; padding: 6px 14px; border-radius: 20px; border: 1px solid #ab46fa; color: #ab46fa; background: white; cursor: pointer; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; flex-direction: column; }
+#header { background: #ab46fa; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#logo { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-family: 'Noto Serif', serif; font-size: 12px; font-weight: 600; color: white; flex-shrink: 0; }
+#header-info p { font-family: 'Noto Serif', serif; font-size: 14px; font-weight: 600; }
+#header-info span { font-size: 11px; opacity: 0.85; }
+#counter { margin-left: auto; font-size: 11px; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); white-space: nowrap; }
+#messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
+.bubble { max-width: 82%; padding: 10px 14px; font-size: 13px; line-height: 1.6; word-wrap: break-word; }
+.bot { align-self: flex-start; background: white; color: #222; border: 1px solid #e5e5e5; border-radius: 4px 16px 16px 16px; }
+.user { align-self: flex-end; background: #4946fa; color: white; border-radius: 16px 16px 4px 16px; }
+.typing { align-self: flex-start; background: white; color: #999; border: 1px solid #e5e5e5; border-radius: 4px 16px 16px 16px; font-style: italic; padding: 10px 14px; font-size: 13px; }
+#chips-wrap { padding: 6px 14px 8px; display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+.chip { font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid #ab46fa; color: #ab46fa; background: white; cursor: pointer; white-space: nowrap; }
 .chip:hover { background: #f5eeff; }
-#bottom-wrap { background: white; border-top: 1px solid #e5e5e5; padding: 14px 20px; }
-#bottom { max-width: 800px; margin: 0 auto; display: flex; gap: 10px; }
-#input { flex: 1; border: 1.5px solid #ddd; border-radius: 24px; padding: 12px 18px; font-size: 15px; outline: none; font-family: 'Inter', sans-serif; }
+#bottom-wrap { background: white; border-top: 1px solid #e5e5e5; padding: 8px 14px; flex-shrink: 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+#bottom { display: flex; gap: 8px; align-items: flex-end; }
+#input { flex: 1; border: 1.5px solid #ddd; border-radius: 18px; padding: 8px 14px; font-size: 13px; outline: none; font-family: 'Inter', sans-serif; -webkit-appearance: none; resize: none; overflow: hidden; min-height: 38px; max-height: 120px; line-height: 1.5; display: block; }
 #input:focus { border-color: #ab46fa; }
-#btn { background: #f67d4a; color: white; border: none; border-radius: 24px; padding: 12px 24px; font-size: 15px; cursor: pointer; font-weight: 600; }
+#btn { background: #f67d4a; color: white; border: none; border-radius: 22px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 600; white-space: nowrap; flex-shrink: 0; height: 38px; }
 #btn:hover { background: #e56a38; }
 #btn:disabled { opacity: 0.5; cursor: not-allowed; }
-#limit-banner { display: none; background: #fff3f0; border-top: 1px solid #f67d4a; color: #c44a1a; padding: 12px 20px; font-size: 14px; text-align: center; }
+#limit-banner { display: none; background: #fff3f0; border-top: 1px solid #f67d4a; color: #c44a1a; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; }
 #limit-banner a { color: #4946fa; font-weight: 600; }
+@media (min-width: 600px) {
+  #messages { padding: 20px; max-width: 800px; width: 100%; margin: 0 auto; align-self: center; }
+  #chips-wrap { max-width: 800px; margin: 0 auto; padding: 0 20px 8px; width: 100%; }
+  #bottom { max-width: 800px; margin: 0 auto; }
+  .bubble { font-size: 15px; }
+  #input { font-size: 15px; padding: 10px 16px; min-height: 42px; }
+  #btn { font-size: 14px; padding: 10px 18px; height: 42px; }
+  .chip { font-size: 12px; padding: 5px 12px; }
+}
 </style>
 </head>
 <body>
@@ -40,7 +49,7 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; height: 100vh; dis
     <p>Reta tu Comunicación</p>
     <span>por Relatores</span>
   </div>
-  <a href="https://www.relatorescontando.com" target="_blank" id="header-link">relatorescontando.com →</a>
+  <span id="counter">Cargando...</span>
 </div>
 <div id="messages"></div>
 <div id="chips-wrap">
@@ -50,18 +59,62 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; height: 100vh; dis
   <div class="chip" onclick="sendChip(this)">No sé cómo decir esto</div>
 </div>
 <div id="limit-banner">
-  Alcanzaste tus 7 mensajes gratuitos. <a href="https://www.relatorescontando.com" target="_blank">Activa tu plan completo aquí</a>
+  Alcanzaste tus mensajes gratuitos. <a href="https://www.relatorescontando.com/pricing-plans/planes-asistente" target="_blank">Activa tu Plan Pro aquí →</a>
 </div>
 <div id="bottom-wrap">
   <div id="bottom">
-    <input id="input" type="text" placeholder="Escribe lo que quieres trabajar..." />
+    <textarea id="input" placeholder="Escribe lo que quieres trabajar..." rows="1"></textarea>
     <button id="btn">Enviar</button>
   </div>
 </div>
 <script>
 var chatHistory = [];
-var messageCount = 0;
+var userPlan = 'free';
 var FREE_LIMIT = 7;
+var PRO_LIMIT = 200;
+var messageCount = 0;
+var userId = 'guest';
+
+function getUrlParam(name) {
+  var results = new RegExp('[?&]' + name + '=([^&#]*)').exec(window.location.href);
+  return results ? decodeURIComponent(results[1]) : null;
+}
+
+function getLimit() {
+  return userPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+}
+
+function updateCounter() {
+  var limit = getLimit();
+  var remaining = limit - messageCount;
+  var counterEl = document.getElementById('counter');
+  if (userPlan === 'pro') {
+    counterEl.textContent = remaining + ' de 200 mensajes';
+  } else {
+    counterEl.textContent = remaining + ' mensajes gratis';
+  }
+  if (remaining <= 0) {
+    document.getElementById('limit-banner').style.display = 'block';
+    document.getElementById('bottom-wrap').style.display = 'none';
+    document.getElementById('chips-wrap').style.display = 'none';
+  }
+}
+
+function initChat() {
+  var uidParam = getUrlParam('uid');
+  var planParam = getUrlParam('plan');
+  if (uidParam) userId = uidParam;
+  if (planParam) userPlan = planParam;
+  updateCounter();
+  addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\n¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
+}
+
+var inputEl = document.getElementById('input');
+
+inputEl.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
 
 function addBubble(text, role) {
   var div = document.createElement('div');
@@ -72,21 +125,10 @@ function addBubble(text, role) {
     div.className = 'bubble ' + (role === 'user' ? 'user' : 'bot');
     div.innerHTML = text.replace(/\n/g, '<br>');
   }
-  document.getElementById('messages').appendChild(div);
-  div.scrollIntoView({ behavior: 'smooth' });
+  var messages = document.getElementById('messages');
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
   return div;
-}
-
-function showWelcome() {
-  addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\n¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
-}
-
-function updateLimit() {
-  if (messageCount >= FREE_LIMIT) {
-    document.getElementById('limit-banner').style.display = 'block';
-    document.getElementById('bottom-wrap').style.display = 'none';
-    document.getElementById('chips-wrap').style.display = 'none';
-  }
 }
 
 function sendChip(el) {
@@ -95,18 +137,17 @@ function sendChip(el) {
 }
 
 function send() {
-  var input = document.getElementById('input');
-  var text = input.value.trim();
+  var text = inputEl.value.trim();
   if (!text) return;
-  input.value = '';
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
   doSend(text);
 }
 
 async function doSend(text) {
-  if (messageCount >= FREE_LIMIT) return;
+  if (messageCount >= getLimit()) return;
   var btn = document.getElementById('btn');
   btn.disabled = true;
-  messageCount++;
 
   addBubble(text, 'user');
   chatHistory.push({ role: 'user', content: text });
@@ -117,13 +158,24 @@ async function doSend(text) {
     var response = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: chatHistory })
+      body: JSON.stringify({
+        messages: chatHistory,
+        userId: userId,
+        plan: userPlan
+      })
     });
     var data = await response.json();
     typingBubble.remove();
-    if (data.reply) {
+
+    if (data.limitReached) {
+      messageCount = getLimit();
+      updateCounter();
+      addBubble('Alcanzaste tus mensajes gratuitos. Para continuar activa tu Plan Pro.', 'bot');
+    } else if (data.reply) {
+      messageCount = data.count || messageCount + 1;
       chatHistory.push({ role: 'assistant', content: data.reply });
       addBubble(data.reply, 'bot');
+      updateCounter();
     } else {
       addBubble('Error: ' + (data.error || 'desconocido'), 'bot');
     }
@@ -133,12 +185,17 @@ async function doSend(text) {
   }
 
   btn.disabled = false;
-  updateLimit();
 }
 
 document.getElementById('btn').onclick = send;
-document.getElementById('input').onkeypress = function(e) { if (e.key === 'Enter') send(); };
-showWelcome();
+inputEl.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+
+initChat();
 </script>
 </body>
 </html>
