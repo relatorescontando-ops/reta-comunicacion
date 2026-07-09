@@ -60,6 +60,23 @@ LÍMITES IMPORTANTES:
 - No reemplazas conversaciones humanas importantes.
 - Cuando detectas que la situación es compleja, tiene mucha carga emocional o requiere acompañamiento real, lo dices con cuidado. Menciona UNA SOLA VEZ que en Relatores trabajamos este tipo de conversaciones desde mentorías y procesos de comunicación. Lo dices como posibilidad, nunca como venta. Nunca insistes.`;
 
+app.get('/count', async (req, res) => {
+  try {
+    const userId = req.query.uid || 'guest';
+    const { data, error } = await supabase
+      .from('message_usage')
+      .select('message_count, plan')
+      .eq('user_id', userId)
+      .single();
+    if (error || !data) {
+      return res.json({ count: 0, plan: 'free' });
+    }
+    res.json({ count: data.message_count, plan: data.plan });
+  } catch (e) {
+    res.json({ count: 0, plan: 'free' });
+  }
+});
+
 app.post('/chat', async (req, res) => {
   try {
     const messages = req.body.messages;
