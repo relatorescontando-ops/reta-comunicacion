@@ -103,24 +103,28 @@ LÍMITES IMPORTANTES:
 app.get('/count', async (req, res) => {
   try {
     const userId = req.query.uid || 'guest';
+    const userPlan = req.query.plan || 'free';
+    const limit = userPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+
     const { data, error } = await supabase
       .from('message_usage')
       .select('message_count, plan')
       .eq('user_id', userId)
       .single();
+
     if (error || !data) {
-      return res.json({ count: 0, plan: 'free' });
+      return res.json({ count: 0, plan: userPlan, limit: limit });
     }
-    res.json({ count: data.message_count, plan: data.plan });
+
+    res.json({ count: data.message_count, plan: userPlan, limit: limit });
   } catch (e) {
-    res.json({ count: 0, plan: 'free' });
+    res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
   }
 });
 
 app.post('/generate-pdf', async (req, res) => {
   try {
     const { summary, reto, fecha } = req.body;
-
     const doc = new PDFDocument({ margin: 50 });
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -242,7 +246,11 @@ app.post('/chat', async (req, res) => {
       }
       await supabase
         .from('message_usage')
-        .update({ message_count: currentCount + 1, updated_at: new Date() })
+        .update({
+          message_count: currentCount + 1,
+          plan: userPlan,
+          updated_at: new Date()
+        })
         .eq('user_id', userId);
     } else {
       await supabase
