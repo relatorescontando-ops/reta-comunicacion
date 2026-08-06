@@ -122,6 +122,26 @@ app.get('/count', async (req, res) => {
   }
 });
 
+app.post('/webhook-plan-upgrade', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+    await supabase
+      .from('message_usage')
+      .upsert({
+        user_id: userId,
+        message_count: 0,
+        plan: 'pro',
+        updated_at: new Date()
+      }, { onConflict: 'user_id' });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.toString() });
+  }
+});
+
 app.post('/generate-pdf', async (req, res) => {
   try {
     const { summary, reto, fecha } = req.body;
