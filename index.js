@@ -116,6 +116,14 @@ app.get('/count', async (req, res) => {
       return res.json({ count: 0, plan: userPlan, limit: limit });
     }
 
+    if (userPlan === 'pro' && data.plan === 'free' && data.message_count >= FREE_LIMIT) {
+      await supabase
+        .from('message_usage')
+        .update({ message_count: 0, plan: 'pro', updated_at: new Date() })
+        .eq('user_id', userId);
+      return res.json({ count: 0, plan: 'pro', limit: PRO_LIMIT });
+    }
+
     res.json({ count: data.message_count, plan: userPlan, limit: limit });
   } catch (e) {
     res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
