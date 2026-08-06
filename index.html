@@ -210,7 +210,7 @@ async function downloadPDF() {
     document.body.removeChild(a);
 
   document.getElementById('pdf-btn').textContent = '✓ Descargado — descargar de nuevo';
-document.getElementById('pdf-btn').disabled = false;
+  document.getElementById('pdf-btn').disabled = false;
   } catch(e) {
     document.getElementById('pdf-btn').textContent = 'Error — intenta de nuevo';
     document.getElementById('pdf-btn').disabled = false;
