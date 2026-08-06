@@ -103,8 +103,7 @@ LÍMITES IMPORTANTES:
 app.get('/count', async (req, res) => {
   try {
     const userId = req.query.uid || 'guest';
-    const userPlan = req.query.plan || 'free';
-    const limit = userPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+    const urlPlan = req.query.plan || 'free';
 
     const { data, error } = await supabase
       .from('message_usage')
@@ -113,10 +112,13 @@ app.get('/count', async (req, res) => {
       .single();
 
     if (error || !data) {
-      return res.json({ count: 0, plan: userPlan, limit: limit });
+      return res.json({ count: 0, plan: urlPlan, limit: urlPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT });
     }
 
-    if (userPlan === 'pro' && data.plan === 'free' && data.message_count >= FREE_LIMIT) {
+    const effectivePlan = data.plan === 'pro' ? 'pro' : urlPlan;
+    const limit = effectivePlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+
+    if (effectivePlan === 'pro' && data.message_count >= FREE_LIMIT && data.plan === 'free') {
       await supabase
         .from('message_usage')
         .update({ message_count: 0, plan: 'pro', updated_at: new Date() })
@@ -124,7 +126,7 @@ app.get('/count', async (req, res) => {
       return res.json({ count: 0, plan: 'pro', limit: PRO_LIMIT });
     }
 
-    res.json({ count: data.message_count, plan: userPlan, limit: limit });
+    res.json({ count: data.message_count, plan: effectivePlan, limit: limit });
   } catch (e) {
     res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
   }
