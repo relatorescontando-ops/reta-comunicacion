@@ -122,6 +122,7 @@ async function initChat() {
     var response = await fetch('/count?uid=' + userId + '&plan=' + userPlan);
     var data = await response.json();
     messageCount = data.count || 0;
+    userPlan = data.plan || userPlan;
   } catch(e) {
     messageCount = 0;
   }
