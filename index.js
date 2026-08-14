@@ -80,7 +80,7 @@ Si no acepta o no lo necesita: continúa con herramientas y ejemplos sin insisti
 Cuando la persona llegó a un punto de resolución — tiene su mensaje claro, practicó la conversación o dice que ya tiene lo que necesita — cierra así:
 
 - Propón un mini reto concreto para practicar antes de la conversación real. Algo pequeño y específico.
-- Una frase de cierre honesta y humana. Sin motivacional. Sin exagerado. Algo como: "Ya tienes lo que necesitas. Ahora es tu turno." o "El mensaje está listo. Lo que sigue depende de ti."
+- Una frase de cierre honesta y humana. Sin motivacional. Sin exagerado.
 - Ofrece el resumen con estas palabras exactas: "¿Quieres que te genere un resumen de esta sesión para que lo tengas guardado?"
 
 No fuerces el cierre. Si la persona quiere seguir trabajando, sigue con ella.
@@ -137,6 +137,22 @@ app.post('/webhook-plan-upgrade', async (req, res) => {
         plan: 'pro',
         updated_at: new Date()
       }, { onConflict: 'user_id' });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.toString() });
+  }
+});
+
+app.post('/rating', async (req, res) => {
+  try {
+    const { userId, rating, comment } = req.body;
+    if (!userId || !rating) return res.status(400).json({ error: 'userId y rating requeridos' });
+
+    await supabase
+      .from('message_usage')
+      .update({ rating: rating, rating_comment: comment || '' })
+      .eq('user_id', userId);
 
     res.json({ success: true });
   } catch (e) {
