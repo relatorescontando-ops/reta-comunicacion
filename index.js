@@ -147,11 +147,15 @@ app.post('/webhook-plan-upgrade', async (req, res) => {
 app.post('/rating', async (req, res) => {
   try {
     const { userId, rating, comment } = req.body;
-    if (!userId || !rating) return res.status(400).json({ error: 'userId y rating requeridos' });
+    if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+    const updateData = {};
+    if (rating) updateData.rating = rating;
+    if (comment) updateData.category = comment;
 
     await supabase
       .from('message_usage')
-      .update({ rating: rating, rating_comment: comment || '' })
+      .update(updateData)
       .eq('user_id', userId);
 
     res.json({ success: true });
