@@ -31,9 +31,13 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 #btn:disabled { opacity: 0.5; cursor: not-allowed; }
 #limit-banner { display: none; background: #fff3f0; border-top: 1px solid #f67d4a; color: #c44a1a; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; }
 #limit-banner a { color: #4946fa; font-weight: 600; }
+#rating-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 12px 16px; text-align: center; flex-shrink: 0; }
 #pdf-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; }
 #pdf-btn { background: #ab46fa; color: white; border: none; border-radius: 20px; padding: 8px 16px; font-size: 12px; cursor: pointer; font-weight: 600; margin-top: 6px; }
 #pdf-btn:hover { background: #9333e8; }
+.cat-btn { font-size: 11px; padding: 5px 12px; border-radius: 20px; border: 1px solid #ab46fa; color: #ab46fa; background: white; cursor: pointer; }
+.cat-btn:hover { background: #f5eeff; }
+.cat-btn.selected { background: #ab46fa; color: white; }
 @media (min-width: 600px) {
   #messages { padding: 20px; max-width: 800px; width: 100%; margin: 0 auto; align-self: center; }
   #chips-wrap { max-width: 800px; margin: 0 auto; padding: 0 20px 8px; width: 100%; }
@@ -67,6 +71,28 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 <div id="limit-banner">
   Alcanzaste tus mensajes gratuitos. <a href="https://www.relatorescontando.com/pricing-plans/planes-asistente" target="_blank">Activa tu Plan Pro aquí →</a>
 </div>
+<div id="rating-banner">
+  <p style="font-size:13px; color:#333; margin-bottom:8px;">¿Cómo fue tu experiencia hoy?</p>
+  <div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">
+    <button onclick="submitRating(1)" style="font-size:22px; background:none; border:none; cursor:pointer;">😞</button>
+    <button onclick="submitRating(2)" style="font-size:22px; background:none; border:none; cursor:pointer;">😐</button>
+    <button onclick="submitRating(3)" style="font-size:22px; background:none; border:none; cursor:pointer;">🙂</button>
+    <button onclick="submitRating(4)" style="font-size:22px; background:none; border:none; cursor:pointer;">😊</button>
+    <button onclick="submitRating(5)" style="font-size:22px; background:none; border:none; cursor:pointer;">🤩</button>
+  </div>
+  <div id="category-section" style="display:none;">
+    <p style="font-size:12px; color:#555; margin-bottom:8px;">¿Qué trabajaste hoy?</p>
+    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-bottom:8px;">
+      <button class="cat-btn" onclick="submitCategory(this, 'Conversación difícil')">Conversación difícil</button>
+      <button class="cat-btn" onclick="submitCategory(this, 'Feedback')">Feedback</button>
+      <button class="cat-btn" onclick="submitCategory(this, 'Límites')">Límites</button>
+      <button class="cat-btn" onclick="submitCategory(this, 'Presentación')">Presentación</button>
+      <button class="cat-btn" onclick="submitCategory(this, 'Mensaje importante')">Mensaje importante</button>
+      <button class="cat-btn" onclick="submitCategory(this, 'Otro')">Otro</button>
+    </div>
+  </div>
+  <p id="rating-thanks" style="display:none; font-size:12px; color:#ab46fa; font-weight:600;">¡Gracias por tu calificación!</p>
+</div>
 <div id="pdf-banner">
   Tu resumen está listo para descargar.<br>
   <button id="pdf-btn" onclick="downloadPDF()">Descargar resumen PDF</button>
@@ -84,7 +110,6 @@ var FREE_LIMIT = 7;
 var PRO_LIMIT = 200;
 var messageCount = 0;
 var userId = 'guest';
-var sessionSummary = '';
 var sessionReto = '';
 
 function getUrlParam(name) {
@@ -178,6 +203,37 @@ function checkForReto(text) {
   }
 }
 
+async function submitRating(stars) {
+  try {
+    await fetch('/rating', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: userId, rating: stars })
+    });
+    document.querySelectorAll('#rating-banner > div > button').forEach(function(b) { b.disabled = true; });
+    document.getElementById('category-section').style.display = 'block';
+  } catch(e) {
+    console.log('Error guardando calificación:', e);
+  }
+}
+
+async function submitCategory(el, category) {
+  try {
+    document.querySelectorAll('.cat-btn').forEach(function(b) { b.classList.remove('selected'); b.disabled = true; });
+    el.classList.add('selected');
+
+    await fetch('/rating', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: userId, rating: null, comment: category })
+    });
+
+    document.getElementById('rating-thanks').style.display = 'block';
+  } catch(e) {
+    console.log('Error guardando categoría:', e);
+  }
+}
+
 async function downloadPDF() {
   try {
     document.getElementById('pdf-btn').textContent = 'Generando...';
@@ -209,8 +265,8 @@ async function downloadPDF() {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
 
-  document.getElementById('pdf-btn').textContent = '✓ Descargado — descargar de nuevo';
-  document.getElementById('pdf-btn').disabled = false;
+    document.getElementById('pdf-btn').textContent = '✓ Descargado — descargar de nuevo';
+    document.getElementById('pdf-btn').disabled = false;
   } catch(e) {
     document.getElementById('pdf-btn').textContent = 'Error — intenta de nuevo';
     document.getElementById('pdf-btn').disabled = false;
@@ -266,6 +322,7 @@ async function doSend(text) {
       checkForReto(data.reply);
 
       if (checkForSummaryOffer(data.reply)) {
+        document.getElementById('rating-banner').style.display = 'block';
         document.getElementById('pdf-banner').style.display = 'block';
       }
     } else {
