@@ -18,17 +18,21 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 .bubble { max-width: 82%; padding: 10px 14px; font-size: 13px; line-height: 1.6; word-wrap: break-word; }
 .bot { align-self: flex-start; background: white; color: #222; border: 1px solid #e5e5e5; border-radius: 4px 16px 16px 16px; }
 .user { align-self: flex-end; background: #4946fa; color: white; border-radius: 16px 16px 4px 16px; }
+.file-bubble { align-self: flex-end; background: #ede9fe; color: #4946fa; border: 1px solid #c4b5fd; border-radius: 16px 16px 4px 16px; padding: 8px 14px; font-size: 12px; max-width: 82%; }
 .typing { align-self: flex-start; background: white; color: #999; border: 1px solid #e5e5e5; border-radius: 4px 16px 16px 16px; font-style: italic; padding: 10px 14px; font-size: 13px; }
 #chips-wrap { padding: 6px 14px 8px; display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
 .chip { font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid #ab46fa; color: #ab46fa; background: white; cursor: pointer; white-space: nowrap; }
 .chip:hover { background: #f5eeff; }
 #bottom-wrap { background: white; border-top: 1px solid #e5e5e5; padding: 8px 14px; flex-shrink: 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 #bottom { display: flex; gap: 8px; align-items: flex-end; }
+#file-btn { background: none; border: none; cursor: pointer; color: #ab46fa; font-size: 20px; flex-shrink: 0; padding: 4px; height: 38px; display: flex; align-items: center; }
+#file-btn:hover { opacity: 0.7; }
 #input { flex: 1; border: 1.5px solid #ddd; border-radius: 18px; padding: 8px 14px; font-size: 13px; outline: none; font-family: 'Inter', sans-serif; -webkit-appearance: none; resize: none; overflow: hidden; min-height: 38px; max-height: 120px; line-height: 1.5; display: block; }
 #input:focus { border-color: #ab46fa; }
 #btn { background: #f67d4a; color: white; border: none; border-radius: 22px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 600; white-space: nowrap; flex-shrink: 0; height: 38px; }
 #btn:hover { background: #e56a38; }
 #btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#file-input { display: none; }
 #limit-banner { display: none; background: #fff3f0; border-top: 1px solid #f67d4a; color: #c44a1a; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; }
 #limit-banner a { color: #4946fa; font-weight: 600; }
 #rating-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 12px 16px; text-align: center; flex-shrink: 0; }
@@ -99,6 +103,8 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 </div>
 <div id="bottom-wrap">
   <div id="bottom">
+    <button id="file-btn" onclick="document.getElementById('file-input').click()" title="Subir documento">📎</button>
+    <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" onchange="handleFile(this)">
     <textarea id="input" placeholder="Escribe lo que quieres trabajar..." rows="1"></textarea>
     <button id="btn">Enviar</button>
   </div>
@@ -159,7 +165,7 @@ async function initChat() {
     document.getElementById('bottom-wrap').style.display = 'none';
     document.getElementById('chips-wrap').style.display = 'none';
   } else {
-    addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\n¿Qué conversación, idea o mensaje quieres trabajar hoy?', 'bot');
+    addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\nPuedes escribir lo que necesitas trabajar o subir un documento con el clip 📎\n\n¿Qué trabajamos hoy?', 'bot');
   }
 }
 
@@ -175,6 +181,9 @@ function addBubble(text, role) {
   if (role === 'typing') {
     div.className = 'typing';
     div.textContent = 'Escribiendo...';
+  } else if (role === 'file') {
+    div.className = 'file-bubble';
+    div.innerHTML = '📎 ' + text;
   } else {
     div.className = 'bubble ' + (role === 'user' ? 'user' : 'bot');
     div.innerHTML = text.replace(/\n/g, '<br>');
@@ -185,13 +194,92 @@ function addBubble(text, role) {
   return div;
 }
 
+async function handleFile(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  input.value = '';
+
+  var loadingBubble = addBubble('Leyendo ' + file.name + '...', 'file');
+
+  var formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    var response = await fetch('/upload', {
+      method: 'POST',
+      body: formData
+    });
+    var data = await response.json();
+
+    if (data.error) {
+      loadingBubble.innerHTML = '❌ ' + data.error;
+      return;
+    }
+
+    loadingBubble.innerHTML = '📎 ' + data.filename + ' — listo';
+
+    var fileContext = 'El usuario subió el documento "' + data.filename + '" con el siguiente contenido:\n\n' + data.text;
+    chatHistory.push({ role: 'user', content: fileContext });
+
+    await sendToChat('He subido mi documento "' + data.filename + '". ¿Puedes ayudarme a trabajar sobre él?');
+
+  } catch(e) {
+    loadingBubble.innerHTML = '❌ Error al procesar el archivo. Intenta de nuevo.';
+  }
+}
+
+async function sendToChat(displayText) {
+  if (messageCount >= getLimit()) return;
+  var btn = document.getElementById('btn');
+  btn.disabled = true;
+  messageCount++;
+  updateCounter();
+
+  var typingBubble = addBubble('', 'typing');
+
+  try {
+    var response = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: chatHistory,
+        userId: userId,
+        plan: userPlan
+      })
+    });
+    var data = await response.json();
+    typingBubble.remove();
+
+    if (data.limitReached) {
+      messageCount = getLimit();
+      updateCounter();
+      addBubble('Alcanzaste tus mensajes gratuitos. Para continuar activa tu Plan Pro.', 'bot');
+    } else if (data.reply) {
+      messageCount = data.count || messageCount;
+      chatHistory.push({ role: 'assistant', content: data.reply });
+      addBubble(data.reply, 'bot');
+      updateCounter();
+      checkForReto(data.reply);
+      if (checkForSummaryOffer(data.reply)) {
+        document.getElementById('rating-banner').style.display = 'block';
+        document.getElementById('pdf-banner').style.display = 'block';
+      }
+    } else {
+      addBubble('Error: ' + (data.error || 'desconocido'), 'bot');
+    }
+  } catch(e) {
+    typingBubble.remove();
+    addBubble('Error de conexión.', 'bot');
+  }
+
+  btn.disabled = false;
+}
+
 function checkForSummaryOffer(text) {
   var keywords = ['resumen de esta sesión', 'resumen de la sesión', 'genere un resumen', 'lo tengas guardado'];
   var plainText = text.toLowerCase();
   for (var i = 0; i < keywords.length; i++) {
-    if (plainText.indexOf(keywords[i]) !== -1) {
-      return true;
-    }
+    if (plainText.indexOf(keywords[i]) !== -1) return true;
   }
   return false;
 }
@@ -212,26 +300,20 @@ async function submitRating(stars) {
     });
     document.querySelectorAll('#rating-banner > div > button').forEach(function(b) { b.disabled = true; });
     document.getElementById('category-section').style.display = 'block';
-  } catch(e) {
-    console.log('Error guardando calificación:', e);
-  }
+  } catch(e) {}
 }
 
 async function submitCategory(el, category) {
   try {
     document.querySelectorAll('.cat-btn').forEach(function(b) { b.classList.remove('selected'); b.disabled = true; });
     el.classList.add('selected');
-
     await fetch('/rating', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: userId, rating: null, comment: category })
     });
-
     document.getElementById('rating-thanks').style.display = 'block';
-  } catch(e) {
-    console.log('Error guardando categoría:', e);
-  }
+  } catch(e) {}
 }
 
 async function downloadPDF() {
@@ -240,8 +322,7 @@ async function downloadPDF() {
     document.getElementById('pdf-btn').disabled = true;
 
     var summaryText = '';
-    var messages = document.getElementById('messages').querySelectorAll('.bubble.bot');
-    messages.forEach(function(msg) {
+    document.getElementById('messages').querySelectorAll('.bubble.bot').forEach(function(msg) {
       summaryText += msg.innerText + '\n\n';
     });
 
@@ -264,7 +345,6 @@ async function downloadPDF() {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-
     document.getElementById('pdf-btn').textContent = '✓ Descargado — descargar de nuevo';
     document.getElementById('pdf-btn').disabled = false;
   } catch(e) {
@@ -275,7 +355,10 @@ async function downloadPDF() {
 
 function sendChip(el) {
   document.getElementById('chips-wrap').style.display = 'none';
-  doSend(el.textContent);
+  var text = el.textContent;
+  addBubble(text, 'user');
+  chatHistory.push({ role: 'user', content: text });
+  sendToChat(text);
 }
 
 function send() {
@@ -283,57 +366,9 @@ function send() {
   if (!text) return;
   inputEl.value = '';
   inputEl.style.height = 'auto';
-  doSend(text);
-}
-
-async function doSend(text) {
-  if (messageCount >= getLimit()) return;
-  var btn = document.getElementById('btn');
-  btn.disabled = true;
-
   addBubble(text, 'user');
   chatHistory.push({ role: 'user', content: text });
-
-  var typingBubble = addBubble('', 'typing');
-
-  try {
-    var response = await fetch('/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: chatHistory,
-        userId: userId,
-        plan: userPlan
-      })
-    });
-    var data = await response.json();
-    typingBubble.remove();
-
-    if (data.limitReached) {
-      messageCount = getLimit();
-      updateCounter();
-      addBubble('Alcanzaste tus mensajes gratuitos. Para continuar activa tu Plan Pro.', 'bot');
-    } else if (data.reply) {
-      messageCount = data.count || messageCount + 1;
-      chatHistory.push({ role: 'assistant', content: data.reply });
-      addBubble(data.reply, 'bot');
-      updateCounter();
-
-      checkForReto(data.reply);
-
-      if (checkForSummaryOffer(data.reply)) {
-        document.getElementById('rating-banner').style.display = 'block';
-        document.getElementById('pdf-banner').style.display = 'block';
-      }
-    } else {
-      addBubble('Error: ' + (data.error || 'desconocido'), 'bot');
-    }
-  } catch(e) {
-    typingBubble.remove();
-    addBubble('Error de conexión.', 'bot');
-  }
-
-  btn.disabled = false;
+  sendToChat(text);
 }
 
 document.getElementById('btn').onclick = send;
