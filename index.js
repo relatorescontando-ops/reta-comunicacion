@@ -4,8 +4,13 @@ const fetch = require('node-fetch');
 const { createClient } = require('@supabase/supabase-js');
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
@@ -48,6 +53,7 @@ LO QUE HACES:
 - Ayudas a encontrar el mensaje esencial
 - Traduces emociones en palabras más claras
 - Das estructura a feedback, límites, presentaciones
+- Cuando alguien sube un documento, lo lees y ayudas a trabajar sobre ese contenido específico
 
 CÓMO FLUYE LA CONVERSACIÓN:
 
@@ -55,6 +61,7 @@ Cada persona llega con una necesidad diferente. Tu trabajo es leer esa necesidad
 
 1. ESCUCHA Y PREGUNTA:
 Cuando alguien llega, haz UNA pregunta de contexto para entender bien la situación antes de dar herramientas. Si usó un chip de entrada, ya tienes contexto suficiente — entra directo al tema sin preguntar.
+Cuando alguien sube un documento, reconócelo y pregunta qué quiere trabajar sobre él.
 
 Solo una pregunta a la vez. Nunca hagas dos preguntas seguidas.
 
@@ -62,25 +69,20 @@ Solo una pregunta a la vez. Nunca hagas dos preguntas seguidas.
 Una vez entiendes el contexto, ofrece la herramienta más útil para esa situación y muestra un ejemplo concreto de cómo sonaría aplicada al caso real de la persona. Breve, específico, en su voz.
 
 HERRAMIENTAS QUE USAS:
-- Fórmula Hecho-Impacto-Pedido: para conversaciones difíciles. Describe el hecho observable, explica el impacto real, hace un pedido concreto.
+- Fórmula Hecho-Impacto-Pedido: para conversaciones difíciles.
 - Estructura Reconocer-Límite-Alternativa: para decir NO con respeto.
 - Checklist de claridad: ¿Qué quiero que hagan? ¿Para quién es? ¿Qué sobra?
 - Micro-presentaciones: 1 mensaje central + 3 ideas de apoyo + máximo 60 segundos.
 
 3. OFRECE EL SIMULADOR SOLO CUANDO TIENE SENTIDO:
-Cuando la persona tiene una conversación pendiente que necesita practicar — no cuando solo busca claridad o una herramienta — ofrece practicarla en vivo:
-
-"¿Quieres que practiquemos cómo sonaría esto? Puedo hacer el rol de [la otra persona] y tú ensayas lo que vas a decir."
-
-Si acepta: entra en modo simulador. Haz el rol de la otra persona con respuestas realistas — no perfectas, no fáciles. Después de cada intercambio, da feedback breve: qué funcionó y qué ajustar. El simulador termina cuando la persona siente que está lista.
-
-Si no acepta o no lo necesita: continúa con herramientas y ejemplos sin insistir.
+Cuando la persona tiene una conversación pendiente que necesita practicar, ofrece practicarla en vivo.
+Si acepta: entra en modo simulador con respuestas realistas y da feedback breve después de cada intercambio.
+Si no acepta: continúa con herramientas sin insistir.
 
 4. CIERRE NATURAL:
-Cuando la persona llegó a un punto de resolución — tiene su mensaje claro, practicó la conversación o dice que ya tiene lo que necesita — cierra así:
-
-- Propón un mini reto concreto para practicar antes de la conversación real. Algo pequeño y específico.
-- Una frase de cierre honesta y humana. Sin motivacional. Sin exagerado.
+Cuando la persona llegó a un punto de resolución — cierra así:
+- Mini reto concreto para practicar.
+- Frase de cierre honesta y humana.
 - Ofrece el resumen con estas palabras exactas: "¿Quieres que te genere un resumen de esta sesión para que lo tengas guardado?"
 
 No fuerces el cierre. Si la persona quiere seguir trabajando, sigue con ella.
@@ -90,7 +92,7 @@ LÍMITES IMPORTANTES:
 - No juzgas ni sermoneas.
 - No das consejo psicológico ni terapéutico.
 - No reemplazas conversaciones humanas importantes.
-- Cuando detectas que la situación es compleja, tiene mucha carga emocional o requiere acompañamiento real, lo dices con cuidado. Menciona UNA SOLA VEZ que en Relatores trabajamos este tipo de conversaciones desde mentorías y procesos de comunicación. Lo dices como posibilidad, nunca como venta. Nunca insistes.`;
+- Cuando detectas que la situación es compleja, menciona UNA SOLA VEZ que en Relatores trabajamos este tipo de conversaciones desde mentorías. Nunca como venta, siempre como posibilidad.`;
 
 app.get('/count', async (req, res) => {
   try {
@@ -121,6 +123,41 @@ app.get('/count', async (req, res) => {
     res.json({ count: data.message_count, plan: effectivePlan, limit: limit });
   } catch (e) {
     res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
+  }
+});
+
+app.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+
+    const mimetype = req.file.mimetype;
+    let text = '';
+
+    if (mimetype === 'application/pdf') {
+      const data = await pdfParse(req.file.buffer);
+      text = data.text;
+    } else if (
+      mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      mimetype === 'application/msword'
+    ) {
+      const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+      text = result.value;
+    } else if (mimetype === 'text/plain') {
+      text = req.file.buffer.toString('utf-8');
+    } else {
+      return res.status(400).json({ error: 'Formato no soportado. Sube un PDF, Word o archivo de texto.' });
+    }
+
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: 'No se pudo extraer texto del archivo.' });
+    }
+
+    text = text.substring(0, 8000);
+    res.json({ text: text, filename: req.file.originalname });
+
+  } catch (error) {
+    console.log('Error procesando archivo:', error.toString());
+    res.status(500).json({ error: error.toString() });
   }
 });
 
@@ -178,89 +215,30 @@ app.post('/generate-pdf', async (req, res) => {
       const logoPath = path.join(__dirname, 'Logo.png');
       doc.image(logoPath, 50, 40, { width: 120 });
     } catch(logoError) {
-      console.log('Logo no encontrado:', logoError.toString());
-      doc.fillColor('#ab46fa')
-         .fontSize(16)
-         .font('Helvetica-Bold')
-         .text('RELATORES', 50, 50);
+      doc.fillColor('#ab46fa').fontSize(16).font('Helvetica-Bold').text('RELATORES', 50, 50);
     }
 
     doc.moveDown(4);
-
-    doc.fillColor('#ab46fa')
-       .fontSize(20)
-       .font('Helvetica-Bold')
-       .text('Resumen de sesión', { align: 'center' });
-
-    doc.fillColor('#4946fa')
-       .fontSize(14)
-       .font('Helvetica')
-       .text('Reta tu Comunicación', { align: 'center' });
-
+    doc.fillColor('#ab46fa').fontSize(20).font('Helvetica-Bold').text('Resumen de sesión', { align: 'center' });
+    doc.fillColor('#4946fa').fontSize(14).font('Helvetica').text('Reta tu Comunicación', { align: 'center' });
     doc.moveDown(0.5);
-
-    doc.fillColor('#888888')
-       .fontSize(11)
-       .text(fecha || new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' }), { align: 'center' });
-
+    doc.fillColor('#888888').fontSize(11).text(fecha || new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' }), { align: 'center' });
     doc.moveDown(1.5);
-
-    doc.moveTo(50, doc.y)
-       .lineTo(545, doc.y)
-       .strokeColor('#ab46fa')
-       .lineWidth(1)
-       .stroke();
-
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ab46fa').lineWidth(1).stroke();
     doc.moveDown(1);
-
-    doc.fillColor('#222222')
-       .fontSize(13)
-       .font('Helvetica-Bold')
-       .text('Lo que trabajamos en esta sesión:');
-
+    doc.fillColor('#222222').fontSize(13).font('Helvetica-Bold').text('Lo que trabajamos en esta sesión:');
     doc.moveDown(0.5);
-
-    doc.fillColor('#333333')
-       .fontSize(11)
-       .font('Helvetica')
-       .text(summary || '', { lineGap: 5 });
-
+    doc.fillColor('#333333').fontSize(11).font('Helvetica').text(summary || '', { lineGap: 5 });
     doc.moveDown(1.5);
-
-    doc.moveTo(50, doc.y)
-       .lineTo(545, doc.y)
-       .strokeColor('#e5e5e5')
-       .lineWidth(0.5)
-       .stroke();
-
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e5e5').lineWidth(0.5).stroke();
     doc.moveDown(1);
-
-    doc.fillColor('#f67d4a')
-       .fontSize(13)
-       .font('Helvetica-Bold')
-       .text('Tu reto:');
-
+    doc.fillColor('#f67d4a').fontSize(13).font('Helvetica-Bold').text('Tu reto:');
     doc.moveDown(0.5);
-
-    doc.fillColor('#333333')
-       .fontSize(11)
-       .font('Helvetica')
-       .text(reto || '', { lineGap: 5 });
-
+    doc.fillColor('#333333').fontSize(11).font('Helvetica').text(reto || '', { lineGap: 5 });
     doc.moveDown(3);
-
-    doc.moveTo(50, doc.y)
-       .lineTo(545, doc.y)
-       .strokeColor('#ab46fa')
-       .lineWidth(1)
-       .stroke();
-
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ab46fa').lineWidth(1).stroke();
     doc.moveDown(0.5);
-
-    doc.fillColor('#888888')
-       .fontSize(10)
-       .text('www.relatorescontando.com', { align: 'center' });
-
+    doc.fillColor('#888888').fontSize(10).text('www.relatorescontando.com', { align: 'center' });
     doc.end();
 
   } catch (error) {
@@ -296,11 +274,7 @@ app.post('/chat', async (req, res) => {
       }
       await supabase
         .from('message_usage')
-        .update({
-          message_count: currentCount + 1,
-          plan: userPlan,
-          updated_at: new Date()
-        })
+        .update({ message_count: currentCount + 1, plan: userPlan, updated_at: new Date() })
         .eq('user_id', userId);
     } else {
       await supabase
