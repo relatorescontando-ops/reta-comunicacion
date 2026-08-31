@@ -35,10 +35,12 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 #file-input { display: none; }
 #limit-banner { display: none; background: #fff3f0; border-top: 1px solid #f67d4a; color: #c44a1a; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; }
 #limit-banner a { color: #4946fa; font-weight: 600; }
-#rating-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 12px 16px; text-align: center; flex-shrink: 0; }
-#pdf-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; }
+#rating-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 12px 16px; text-align: center; flex-shrink: 0; position: relative; }
+#pdf-banner { display: none; background: #f5eeff; border-top: 1px solid #ab46fa; padding: 10px 16px; font-size: 12px; text-align: center; flex-shrink: 0; position: relative; }
 #pdf-btn { background: #ab46fa; color: white; border: none; border-radius: 20px; padding: 8px 16px; font-size: 12px; cursor: pointer; font-weight: 600; margin-top: 6px; }
 #pdf-btn:hover { background: #9333e8; }
+.close-btn { position: absolute; top: 8px; right: 12px; background: none; border: none; cursor: pointer; font-size: 16px; color: #888; line-height: 1; }
+.close-btn:hover { color: #333; }
 .cat-btn { font-size: 11px; padding: 5px 12px; border-radius: 20px; border: 1px solid #ab46fa; color: #ab46fa; background: white; cursor: pointer; }
 .cat-btn:hover { background: #f5eeff; }
 .cat-btn.selected { background: #ab46fa; color: white; }
@@ -76,6 +78,7 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
   Alcanzaste tus mensajes gratuitos. <a href="https://www.relatorescontando.com/pricing-plans/planes-asistente" target="_blank">Activa tu Plan Pro aquí →</a>
 </div>
 <div id="rating-banner">
+  <button class="close-btn" onclick="document.getElementById('rating-banner').style.display='none'">✕</button>
   <p style="font-size:13px; color:#333; margin-bottom:8px;">¿Cómo fue tu experiencia hoy?</p>
   <div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">
     <button onclick="submitRating(1)" style="font-size:22px; background:none; border:none; cursor:pointer;">😞</button>
@@ -98,6 +101,7 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
   <p id="rating-thanks" style="display:none; font-size:12px; color:#ab46fa; font-weight:600;">¡Gracias por tu calificación!</p>
 </div>
 <div id="pdf-banner">
+  <button class="close-btn" onclick="document.getElementById('pdf-banner').style.display='none'">✕</button>
   Tu resumen está listo para descargar.<br>
   <button id="pdf-btn" onclick="downloadPDF()">Descargar resumen PDF</button>
 </div>
