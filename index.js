@@ -98,7 +98,6 @@ app.get('/count', async (req, res) => {
   try {
     const userId = req.query.uid || 'guest';
     const urlPlan = req.query.plan || 'free';
-
     const { data, error } = await supabase
       .from('message_usage')
       .select('message_count, plan')
@@ -123,6 +122,60 @@ app.get('/count', async (req, res) => {
     res.json({ count: data.message_count, plan: effectivePlan, limit: limit });
   } catch (e) {
     res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
+  }
+});
+
+app.post('/summarize', async (req, res) => {
+  try {
+    const { messages } = req.body;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+
+    const conversationText = messages
+      .map(m => (m.role === 'user' ? 'Usuario: ' : 'Asistente: ') + m.content)
+      .join('\n\n');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1024,
+        system: `Eres un asistente que genera resúmenes estructurados de sesiones de comunicación de Relatores. 
+Tu tarea es analizar la conversación y generar un resumen claro y útil en español neutro latinoamericano.
+El resumen debe tener este formato exacto:
+
+TEMA TRABAJADO:
+[Una línea describiendo el tema principal de la sesión]
+
+LO QUE DESCUBRIMOS:
+[2-3 puntos clave sobre la situación del usuario]
+
+HERRAMIENTA USADA:
+[Qué herramienta o enfoque se aplicó]
+
+EL MENSAJE FINAL:
+[El mensaje o versión concreta que quedó lista, si aplica]
+
+RETO PENDIENTE:
+[El mini reto propuesto al final]
+
+Sé conciso y práctico. No copies la conversación — sintetiza lo esencial.`,
+        messages: [{ role: 'user', content: 'Resume esta sesión de comunicación:\n\n' + conversationText }]
+      })
+    });
+
+    const data = await response.json();
+    if (data.content && data.content[0] && data.content[0].text) {
+      res.json({ summary: data.content[0].text });
+    } else {
+      res.json({ summary: '' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.toString() });
   }
 });
 
@@ -154,9 +207,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     text = text.substring(0, 8000);
     res.json({ text: text, filename: req.file.originalname });
-
   } catch (error) {
-    console.log('Error procesando archivo:', error.toString());
     res.status(500).json({ error: error.toString() });
   }
 });
@@ -203,7 +254,7 @@ app.post('/rating', async (req, res) => {
 
 app.post('/generate-pdf', async (req, res) => {
   try {
-    const { summary, reto, fecha } = req.body;
+    const { summary, fecha } = req.body;
     const doc = new PDFDocument({ margin: 50 });
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -226,16 +277,18 @@ app.post('/generate-pdf', async (req, res) => {
     doc.moveDown(1.5);
     doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ab46fa').lineWidth(1).stroke();
     doc.moveDown(1);
-    doc.fillColor('#222222').fontSize(13).font('Helvetica-Bold').text('Lo que trabajamos en esta sesión:');
-    doc.moveDown(0.5);
-    doc.fillColor('#333333').fontSize(11).font('Helvetica').text(summary || '', { lineGap: 5 });
-    doc.moveDown(1.5);
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e5e5').lineWidth(0.5).stroke();
-    doc.moveDown(1);
-    doc.fillColor('#f67d4a').fontSize(13).font('Helvetica-Bold').text('Tu reto:');
-    doc.moveDown(0.5);
-    doc.fillColor('#333333').fontSize(11).font('Helvetica').text(reto || '', { lineGap: 5 });
-    doc.moveDown(3);
+
+    const lines = (summary || '').split('\n');
+    lines.forEach(function(line) {
+      if (line.match(/^[A-ZÁÉÍÓÚ\s]+:$/)) {
+        doc.moveDown(0.5);
+        doc.fillColor('#ab46fa').fontSize(12).font('Helvetica-Bold').text(line);
+      } else if (line.trim()) {
+        doc.fillColor('#333333').fontSize(11).font('Helvetica').text(line, { lineGap: 3 });
+      }
+    });
+
+    doc.moveDown(2);
     doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ab46fa').lineWidth(1).stroke();
     doc.moveDown(0.5);
     doc.fillColor('#888888').fontSize(10).text('www.relatorescontando.com', { align: 'center' });
