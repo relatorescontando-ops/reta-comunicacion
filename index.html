@@ -44,6 +44,8 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 .cat-btn { font-size: 11px; padding: 5px 12px; border-radius: 20px; border: 1px solid #ab46fa; color: #ab46fa; background: white; cursor: pointer; }
 .cat-btn:hover { background: #f5eeff; }
 .cat-btn.selected { background: #ab46fa; color: white; }
+#upgrade-hint { display: none; font-size: 11px; color: #ab46fa; text-align: center; padding: 4px 14px; cursor: pointer; }
+#upgrade-hint:hover { text-decoration: underline; }
 @media (min-width: 600px) {
   #messages { padding: 20px; max-width: 800px; width: 100%; margin: 0 auto; align-self: center; }
   #chips-wrap { max-width: 800px; margin: 0 auto; padding: 0 20px 8px; width: 100%; }
@@ -75,7 +77,7 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
   <div class="chip" onclick="sendChip(this)">No sé cómo decir esto</div>
 </div>
 <div id="limit-banner">
-  Alcanzaste tus mensajes gratuitos. <a href="https://www.relatorescontando.com/pricing-plans/planes-asistente" target="_blank">Activa tu Plan Pro aquí →</a>
+  Alcanzaste tus mensajes este mes. <a href="https://www.relatorescontando.com/pricing-plans/planes-asistente" target="_blank">Activa tu Plan Pro aquí →</a>
 </div>
 <div id="rating-banner">
   <button class="close-btn" onclick="document.getElementById('rating-banner').style.display='none'">✕</button>
@@ -105,9 +107,12 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
   <span id="pdf-status">Preparando tu resumen...</span><br>
   <button id="pdf-btn" onclick="downloadPDF()" style="display:none;">Descargar resumen PDF</button>
 </div>
+<div id="upgrade-hint" onclick="window.open('https://www.relatorescontando.com/pricing-plans/planes-asistente', '_blank')">
+  ✨ Sube archivos y descarga resúmenes PDF con el Plan Pro
+</div>
 <div id="bottom-wrap">
   <div id="bottom">
-    <button id="file-btn" onclick="document.getElementById('file-input').click()" title="Subir documento">📎</button>
+    <button id="file-btn" onclick="handleFileClick()" title="Subir documento">📎</button>
     <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" onchange="handleFile(this)">
     <textarea id="input" placeholder="Escribe lo que quieres trabajar..." rows="1"></textarea>
     <button id="btn">Enviar</button>
@@ -116,7 +121,7 @@ body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; fle
 <script>
 var chatHistory = [];
 var userPlan = 'free';
-var FREE_LIMIT = 7;
+var FREE_LIMIT = 30;
 var PRO_LIMIT = 200;
 var messageCount = 0;
 var userId = 'guest';
@@ -138,13 +143,32 @@ function updateCounter() {
   if (userPlan === 'pro') {
     counterEl.textContent = remaining + ' de 200 mensajes';
   } else {
-    counterEl.textContent = remaining + ' mensajes gratis';
+    counterEl.textContent = remaining + ' de 30 mensajes';
   }
   if (remaining <= 0) {
     document.getElementById('limit-banner').style.display = 'block';
     document.getElementById('bottom-wrap').style.display = 'none';
     document.getElementById('chips-wrap').style.display = 'none';
+    document.getElementById('upgrade-hint').style.display = 'none';
   }
+}
+
+function applyPlanRestrictions() {
+  if (userPlan === 'free') {
+    document.getElementById('file-btn').style.opacity = '0.4';
+    document.getElementById('upgrade-hint').style.display = 'block';
+  } else {
+    document.getElementById('file-btn').style.opacity = '1';
+    document.getElementById('upgrade-hint').style.display = 'none';
+  }
+}
+
+function handleFileClick() {
+  if (userPlan === 'free') {
+    window.open('https://www.relatorescontando.com/pricing-plans/planes-asistente', '_blank');
+    return;
+  }
+  document.getElementById('file-input').click();
 }
 
 async function initChat() {
@@ -163,13 +187,15 @@ async function initChat() {
   }
 
   updateCounter();
+  applyPlanRestrictions();
 
   if (messageCount >= getLimit()) {
     document.getElementById('limit-banner').style.display = 'block';
     document.getElementById('bottom-wrap').style.display = 'none';
     document.getElementById('chips-wrap').style.display = 'none';
+    document.getElementById('upgrade-hint').style.display = 'none';
   } else {
-    addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\nPuedes escribir lo que necesitas trabajar o subir un documento con el clip 📎\n\n¿Qué trabajamos hoy?', 'bot');
+    addBubble('Hola.\nEste es un espacio para pensar mejor lo que quieres decir, entrenar tu comunicación y retarte con respeto.\n\n¿Qué trabajamos hoy?', 'bot');
   }
 }
 
@@ -206,6 +232,7 @@ async function handleFile(input) {
   var loadingBubble = addBubble('Leyendo ' + file.name + '...', 'file');
   var formData = new FormData();
   formData.append('file', file);
+  formData.append('plan', userPlan);
 
   try {
     var response = await fetch('/upload', { method: 'POST', body: formData });
@@ -226,6 +253,8 @@ async function handleFile(input) {
 }
 
 async function generateSummary() {
+  if (userPlan === 'free') return;
+
   try {
     document.getElementById('pdf-banner').style.display = 'block';
     document.getElementById('pdf-status').textContent = 'Generando tu resumen...';
@@ -292,6 +321,7 @@ async function downloadPDF() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         summary: currentSummary,
+        plan: userPlan,
         fecha: new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })
       })
     });
@@ -334,7 +364,7 @@ async function sendToChat(displayText) {
     if (data.limitReached) {
       messageCount = getLimit();
       updateCounter();
-      addBubble('Alcanzaste tus mensajes gratuitos. Para continuar activa tu Plan Pro.', 'bot');
+      addBubble('Alcanzaste tus mensajes de este mes. Vuelve el próximo mes o activa el Plan Pro para continuar.', 'bot');
     } else if (data.reply) {
       messageCount = data.count || messageCount;
       chatHistory.push({ role: 'assistant', content: data.reply });
