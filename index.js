@@ -100,6 +100,17 @@ function needsMonthlyReset(resetDate) {
     (now.getFullYear() === last.getFullYear() && now.getMonth() > last.getMonth());
 }
 
+function isPlanExpired(expiresAt) {
+  if (!expiresAt) return false;
+  return new Date() > new Date(expiresAt);
+}
+
+function addDays(days) {
+  var date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
 app.get('/count', async (req, res) => {
   try {
     const userId = req.query.uid || 'guest';
@@ -107,15 +118,24 @@ app.get('/count', async (req, res) => {
 
     const { data, error } = await supabase
       .from('message_usage')
-      .select('message_count, plan, reset_date')
+      .select('message_count, plan, reset_date, plan_expires_at')
       .eq('user_id', userId)
       .single();
 
     if (error || !data) {
-      return res.json({ count: 0, plan: urlPlan, limit: urlPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT });
+      return res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
     }
 
-    const effectivePlan = data.plan === 'pro' ? 'pro' : urlPlan;
+    let effectivePlan = data.plan;
+
+    if (effectivePlan === 'pro' && isPlanExpired(data.plan_expires_at)) {
+      await supabase
+        .from('message_usage')
+        .update({ plan: 'free', plan_expires_at: null, updated_at: new Date() })
+        .eq('user_id', userId);
+      effectivePlan = 'free';
+    }
+
     const limit = effectivePlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
 
     if (needsMonthlyReset(data.reset_date)) {
@@ -124,14 +144,6 @@ app.get('/count', async (req, res) => {
         .update({ message_count: 0, reset_date: new Date() })
         .eq('user_id', userId);
       return res.json({ count: 0, plan: effectivePlan, limit: limit });
-    }
-
-    if (effectivePlan === 'pro' && data.message_count >= FREE_LIMIT && data.plan === 'free') {
-      await supabase
-        .from('message_usage')
-        .update({ message_count: 0, plan: 'pro', reset_date: new Date() })
-        .eq('user_id', userId);
-      return res.json({ count: 0, plan: 'pro', limit: PRO_LIMIT });
     }
 
     res.json({ count: data.message_count, plan: effectivePlan, limit: limit });
@@ -151,6 +163,7 @@ app.post('/webhook-plan-upgrade', async (req, res) => {
         user_id: userId,
         message_count: 0,
         plan: 'pro',
+        plan_expires_at: addDays(30),
         reset_date: new Date(),
         updated_at: new Date()
       }, { onConflict: 'user_id' });
@@ -343,8 +356,17 @@ app.post('/chat', async (req, res) => {
     }
 
     let currentCount = 0;
+    let effectivePlan = userPlan;
 
     if (existing) {
+      if (existing.plan === 'pro' && isPlanExpired(existing.plan_expires_at)) {
+        await supabase
+          .from('message_usage')
+          .update({ plan: 'free', plan_expires_at: null, updated_at: new Date() })
+          .eq('user_id', userId);
+        effectivePlan = 'free';
+      }
+
       if (needsMonthlyReset(existing.reset_date)) {
         await supabase
           .from('message_usage')
@@ -355,18 +377,19 @@ app.post('/chat', async (req, res) => {
         currentCount = existing.message_count;
       }
 
-      if (currentCount >= limit) {
+      const effectiveLimit = effectivePlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+      if (currentCount >= effectiveLimit) {
         return res.json({ limitReached: true, count: currentCount });
       }
 
       await supabase
         .from('message_usage')
-        .update({ message_count: currentCount + 1, plan: userPlan, updated_at: new Date() })
+        .update({ message_count: currentCount + 1, updated_at: new Date() })
         .eq('user_id', userId);
     } else {
       await supabase
         .from('message_usage')
-        .insert({ user_id: userId, message_count: 1, plan: userPlan, reset_date: new Date() });
+        .insert({ user_id: userId, message_count: 1, plan: 'free', reset_date: new Date() });
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
