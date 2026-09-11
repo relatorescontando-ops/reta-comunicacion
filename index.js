@@ -370,7 +370,14 @@ app.post('/chat', async (req, res) => {
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
-
+setInterval(async () => {
+  try {
+    await supabase.from('message_usage').select('count').limit(1);
+    console.log('Ping a Supabase — proyecto activo');
+  } catch (e) {
+    console.log('Error en ping:', e.toString());
+  }
+}, 5 * 24 * 60 * 60 * 1000);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('Servidor corriendo en puerto ' + PORT);
