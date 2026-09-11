@@ -19,7 +19,7 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-const FREE_LIMIT = 7;
+const FREE_LIMIT = 30;
 const PRO_LIMIT = 200;
 
 const SYSTEM_PROMPT = `Eres el asistente de comunicación de Relatores, llamado Reta tu Comunicación. Tu sitio web es www.relatorescontando.com.
@@ -62,7 +62,6 @@ Cada persona llega con una necesidad diferente. Tu trabajo es leer esa necesidad
 1. ESCUCHA Y PREGUNTA:
 Cuando alguien llega, haz UNA pregunta de contexto para entender bien la situación antes de dar herramientas. Si usó un chip de entrada, ya tienes contexto suficiente — entra directo al tema sin preguntar.
 Cuando alguien sube un documento, reconócelo y pregunta qué quiere trabajar sobre él.
-
 Solo una pregunta a la vez. Nunca hagas dos preguntas seguidas.
 
 2. DA HERRAMIENTAS Y EJEMPLOS:
@@ -84,7 +83,6 @@ Cuando la persona llegó a un punto de resolución — cierra así:
 - Mini reto concreto para practicar.
 - Frase de cierre honesta y humana.
 - Ofrece el resumen con estas palabras exactas: "¿Quieres que te genere un resumen de esta sesión para que lo tengas guardado?"
-
 No fuerces el cierre. Si la persona quiere seguir trabajando, sigue con ella.
 
 LÍMITES IMPORTANTES:
@@ -94,13 +92,22 @@ LÍMITES IMPORTANTES:
 - No reemplazas conversaciones humanas importantes.
 - Cuando detectas que la situación es compleja, menciona UNA SOLA VEZ que en Relatores trabajamos este tipo de conversaciones desde mentorías. Nunca como venta, siempre como posibilidad.`;
 
+function needsMonthlyReset(resetDate) {
+  if (!resetDate) return true;
+  var last = new Date(resetDate);
+  var now = new Date();
+  return now.getFullYear() > last.getFullYear() ||
+    (now.getFullYear() === last.getFullYear() && now.getMonth() > last.getMonth());
+}
+
 app.get('/count', async (req, res) => {
   try {
     const userId = req.query.uid || 'guest';
     const urlPlan = req.query.plan || 'free';
+
     const { data, error } = await supabase
       .from('message_usage')
-      .select('message_count, plan')
+      .select('message_count, plan, reset_date')
       .eq('user_id', userId)
       .single();
 
@@ -111,10 +118,18 @@ app.get('/count', async (req, res) => {
     const effectivePlan = data.plan === 'pro' ? 'pro' : urlPlan;
     const limit = effectivePlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
 
+    if (needsMonthlyReset(data.reset_date)) {
+      await supabase
+        .from('message_usage')
+        .update({ message_count: 0, reset_date: new Date() })
+        .eq('user_id', userId);
+      return res.json({ count: 0, plan: effectivePlan, limit: limit });
+    }
+
     if (effectivePlan === 'pro' && data.message_count >= FREE_LIMIT && data.plan === 'free') {
       await supabase
         .from('message_usage')
-        .update({ message_count: 0, plan: 'pro', updated_at: new Date() })
+        .update({ message_count: 0, plan: 'pro', reset_date: new Date() })
         .eq('user_id', userId);
       return res.json({ count: 0, plan: 'pro', limit: PRO_LIMIT });
     }
@@ -122,6 +137,27 @@ app.get('/count', async (req, res) => {
     res.json({ count: data.message_count, plan: effectivePlan, limit: limit });
   } catch (e) {
     res.json({ count: 0, plan: 'free', limit: FREE_LIMIT });
+  }
+});
+
+app.post('/webhook-plan-upgrade', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+    await supabase
+      .from('message_usage')
+      .upsert({
+        user_id: userId,
+        message_count: 0,
+        plan: 'pro',
+        reset_date: new Date(),
+        updated_at: new Date()
+      }, { onConflict: 'user_id' });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.toString() });
   }
 });
 
@@ -181,6 +217,11 @@ Sé conciso y práctico. No copies la conversación — sintetiza lo esencial.`,
 
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
+    const plan = req.body.plan || 'free';
+    if (plan === 'free') {
+      return res.status(403).json({ error: 'La subida de archivos está disponible solo en el Plan Pro.' });
+    }
+
     if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
 
     const mimetype = req.file.mimetype;
@@ -212,26 +253,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-app.post('/webhook-plan-upgrade', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ error: 'userId requerido' });
-
-    await supabase
-      .from('message_usage')
-      .upsert({
-        user_id: userId,
-        message_count: 0,
-        plan: 'pro',
-        updated_at: new Date()
-      }, { onConflict: 'user_id' });
-
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.toString() });
-  }
-});
-
 app.post('/rating', async (req, res) => {
   try {
     const { userId, rating, comment } = req.body;
@@ -254,12 +275,15 @@ app.post('/rating', async (req, res) => {
 
 app.post('/generate-pdf', async (req, res) => {
   try {
-    const { summary, fecha } = req.body;
-    const doc = new PDFDocument({ margin: 50 });
+    const { summary, plan, fecha } = req.body;
 
+    if (plan === 'free') {
+      return res.status(403).json({ error: 'El PDF está disponible solo en el Plan Pro.' });
+    }
+
+    const doc = new PDFDocument({ margin: 50 });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=resumen-sesion-relatores.pdf');
-
     doc.pipe(res);
 
     try {
@@ -321,10 +345,20 @@ app.post('/chat', async (req, res) => {
     let currentCount = 0;
 
     if (existing) {
-      currentCount = existing.message_count;
+      if (needsMonthlyReset(existing.reset_date)) {
+        await supabase
+          .from('message_usage')
+          .update({ message_count: 0, reset_date: new Date() })
+          .eq('user_id', userId);
+        currentCount = 0;
+      } else {
+        currentCount = existing.message_count;
+      }
+
       if (currentCount >= limit) {
         return res.json({ limitReached: true, count: currentCount });
       }
+
       await supabase
         .from('message_usage')
         .update({ message_count: currentCount + 1, plan: userPlan, updated_at: new Date() })
@@ -332,7 +366,7 @@ app.post('/chat', async (req, res) => {
     } else {
       await supabase
         .from('message_usage')
-        .insert({ user_id: userId, message_count: 1, plan: userPlan });
+        .insert({ user_id: userId, message_count: 1, plan: userPlan, reset_date: new Date() });
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -370,6 +404,7 @@ app.post('/chat', async (req, res) => {
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
+
 setInterval(async () => {
   try {
     await supabase.from('message_usage').select('count').limit(1);
@@ -378,6 +413,7 @@ setInterval(async () => {
     console.log('Error en ping:', e.toString());
   }
 }, 5 * 24 * 60 * 60 * 1000);
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('Servidor corriendo en puerto ' + PORT);
