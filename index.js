@@ -114,7 +114,6 @@ function addDays(days) {
 app.get('/count', async (req, res) => {
   try {
     const userId = req.query.uid || 'guest';
-    const urlPlan = req.query.plan || 'free';
 
     const { data, error } = await supabase
       .from('message_usage')
@@ -341,9 +340,7 @@ app.post('/chat', async (req, res) => {
   try {
     const messages = req.body.messages;
     const userId = req.body.userId || 'guest';
-    const userPlan = req.body.plan || 'free';
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const limit = userPlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
 
     const { data: existing, error: fetchError } = await supabase
       .from('message_usage')
@@ -356,10 +353,12 @@ app.post('/chat', async (req, res) => {
     }
 
     let currentCount = 0;
-    let effectivePlan = userPlan;
+    let effectivePlan = 'free';
 
     if (existing) {
-      if (existing.plan === 'pro' && isPlanExpired(existing.plan_expires_at)) {
+      effectivePlan = existing.plan || 'free';
+
+      if (effectivePlan === 'pro' && isPlanExpired(existing.plan_expires_at)) {
         await supabase
           .from('message_usage')
           .update({ plan: 'free', plan_expires_at: null, updated_at: new Date() })
@@ -377,8 +376,9 @@ app.post('/chat', async (req, res) => {
         currentCount = existing.message_count;
       }
 
-      const effectiveLimit = effectivePlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
-      if (currentCount >= effectiveLimit) {
+      const limit = effectivePlan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+
+      if (currentCount >= limit) {
         return res.json({ limitReached: true, count: currentCount });
       }
 
@@ -387,6 +387,7 @@ app.post('/chat', async (req, res) => {
         .update({ message_count: currentCount + 1, updated_at: new Date() })
         .eq('user_id', userId);
     } else {
+      effectivePlan = 'free';
       await supabase
         .from('message_usage')
         .insert({ user_id: userId, message_count: 1, plan: 'free', reset_date: new Date() });
@@ -413,7 +414,7 @@ app.post('/chat', async (req, res) => {
       var text = data.content[0].text;
       text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-      res.json({ reply: text, count: currentCount + 1 });
+      res.json({ reply: text, count: currentCount + 1, plan: effectivePlan });
     } else {
       res.json({ error: 'Sin respuesta', debug: JSON.stringify(data) });
     }
