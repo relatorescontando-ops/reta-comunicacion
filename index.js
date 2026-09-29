@@ -153,8 +153,12 @@ app.get('/count', async (req, res) => {
 
 app.post('/webhook-plan-upgrade', async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, period } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+    const days = period === 'annual' ? 365 :
+                 period === 'semester' ? 180 :
+                 period === 'quarter' ? 90 : 30;
 
     await supabase
       .from('message_usage')
@@ -162,12 +166,12 @@ app.post('/webhook-plan-upgrade', async (req, res) => {
         user_id: userId,
         message_count: 0,
         plan: 'pro',
-        plan_expires_at: addDays(30),
+        plan_expires_at: addDays(days),
         reset_date: new Date(),
         updated_at: new Date()
       }, { onConflict: 'user_id' });
 
-    res.json({ success: true });
+    res.json({ success: true, days: days });
   } catch (e) {
     res.status(500).json({ error: e.toString() });
   }
