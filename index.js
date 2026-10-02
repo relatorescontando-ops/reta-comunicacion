@@ -151,6 +151,57 @@ app.get('/count', async (req, res) => {
   }
 });
 
+app.post('/webhook-mercadopago', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const { type, data } = req.body;
+
+    // MP envía distintos tipos de notificación; solo nos interesan los pagos
+    if (type !== 'payment') {
+      return res.sendStatus(200);
+    }
+
+    const paymentId = data && data.id;
+    if (!paymentId) return res.sendStatus(200);
+
+    // Consultamos el pago en la API de MercadoPago
+    const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` }
+    });
+    const payment = await mpRes.json();
+
+    // Solo procesamos pagos aprobados
+    if (payment.status !== 'approved') {
+      return res.sendStatus(200);
+    }
+
+    // El userId viaja en external_reference (lo pone el botón de Wix)
+    const userId = payment.external_reference;
+    if (!userId) {
+      console.log('Webhook MP: pago aprobado sin external_reference', paymentId);
+      return res.sendStatus(200);
+    }
+
+    // Activamos Pro por 30 días
+    const expiresAt = addDays(30);
+    await supabase
+      .from('message_usage')
+      .upsert({
+        user_id: userId,
+        message_count: 0,
+        plan: 'pro',
+        plan_expires_at: expiresAt,
+        reset_date: new Date(),
+        updated_at: new Date()
+      }, { onConflict: 'user_id' });
+
+    console.log(`Webhook MP: Pro activado para ${userId} hasta ${expiresAt}`);
+    res.sendStatus(200);
+  } catch (e) {
+    console.log('Error en webhook MP:', e.toString());
+    res.sendStatus(500);
+  }
+});
+
 app.post('/webhook-plan-upgrade', async (req, res) => {
   try {
     const { userId, period } = req.body;
