@@ -151,9 +151,37 @@ app.get('/count', async (req, res) => {
   }
 });
 
+const crypto = require('crypto');
+
 app.post('/webhook-mercadopago', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    const { type, data } = req.body;
+    // Validar firma de MercadoPago
+    const secret = process.env.MP_WEBHOOK_SECRET;
+    if (secret) {
+      const xSignature = req.headers['x-signature'];
+      const xRequestId = req.headers['x-request-id'];
+      const urlParams = new URLSearchParams(req.query);
+      const dataId = urlParams.get('data.id') || (req.body && req.body.data && req.body.data.id) || '';
+
+      if (xSignature) {
+        const parts = xSignature.split(',');
+        let ts = '', v1 = '';
+        parts.forEach(part => {
+          const [key, val] = part.trim().split('=');
+          if (key === 'ts') ts = val;
+          if (key === 'v1') v1 = val;
+        });
+        const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+        const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
+        if (hmac !== v1) {
+          console.log('Webhook MP: firma inválida');
+          return res.sendStatus(400);
+        }
+      }
+    }
+
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const { type, data } = body;
 
     // MP envía distintos tipos de notificación; solo nos interesan los pagos
     if (type !== 'payment') {
